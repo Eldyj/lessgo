@@ -4,7 +4,8 @@ yourtoken
 status like dnd||idle||online||offline
 color number
 ```
-your project tree now looks like ```console
+your project tree now looks like
+```console
 .
 ├── config.conf
 ├── go.mod
