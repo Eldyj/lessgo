@@ -167,7 +167,7 @@ func main() {
 		bot.SetStatus(status)
 		bot.SetActivity(&discord.Activity{
 			Name:    "~help",
-			Type:    status,
+			Type:    3,
 			Details: "~help",
 			State:   "my first go programm",
 		})
