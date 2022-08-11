@@ -4,7 +4,7 @@ yourtoken
 status like dnd||idle||online||offline
 color number
 ```
-your project tree now looks like
+your project tree w/o github files looks like
 ```console
 .
 ├── config.conf
