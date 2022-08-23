@@ -17,9 +17,11 @@ import (
 
 var pref string = "~"
 var bot *gateway.Session
+var puts func(s string)
+var msg *discord.Message
 
-func runCMD(index string) func(func(string), *discord.Message, *gateway.Session) {
-	index = getcmd(index)
+func runCMD(){
+	var index string = getcmd(msg.Content)
 	var indexes = [...]string{
 		"help",
 		"ping",
@@ -28,6 +30,7 @@ func runCMD(index string) func(func(string), *discord.Message, *gateway.Session)
 		"profile",
 		"avatar",
 		"server",
+		"say",
 		"invalid command",
 	}
 	var descriptions = [...]string{
@@ -38,10 +41,11 @@ func runCMD(index string) func(func(string), *discord.Message, *gateway.Session)
 		"show your profile",
 		"show your avatar",
 		"show server info",
+		"bot say something",
 		"invalid command",
 	}
-	var values = [...]func(func(string), *discord.Message, *gateway.Session){
-		func(puts func(s string), msg *discord.Message, bot *gateway.Session) {
+	var values = [...]func(){
+		func() {
 			var help string
 			var i byte
 			for ; i < byte(len(descriptions))-1; i++ {
@@ -50,19 +54,19 @@ func runCMD(index string) func(func(string), *discord.Message, *gateway.Session)
 			puts(help)
 		},
 
-		func(puts func(s string), msg *discord.Message, bot *gateway.Session) {
+		func() {
 			time1 := time.Now().UnixNano()
 			puts(fmt.Sprintf("%d nano seconds", int(time.Now().UnixNano()-time1)))
 		},
 
-		func(puts func(s string), msg *discord.Message, bot *gateway.Session) {
+		func() {
 			if rand.Int()%2 == 1 {
 				puts("front side of coin")
 			} else {
 				puts("back side of coin")
 			}
 		},
-		func(puts func(string), msg *discord.Message, bot *gateway.Session) {
+		func() {
 			yes := strings.Split(msg.Content, "~reverse ")[1]
 			bruh := ""
 			for i := len(yes) - 1; i >= 0; i-- {
@@ -70,7 +74,7 @@ func runCMD(index string) func(func(string), *discord.Message, *gateway.Session)
 			}
 			puts(bruh)
 		},
-		func(puts func(s string), msg *discord.Message, bot *gateway.Session) {
+		func() {
 			user := msg.Author
 
 			if len(msg.Mentions) > 0 {
@@ -86,19 +90,30 @@ func runCMD(index string) func(func(string), *discord.Message, *gateway.Session)
 				user.Id),
 			)
 		},
-		func(puts func(string), msg *discord.Message, bot *gateway.Session) {
+		func() {
 			puts("")
 		},
-		func(puts func(string), msg *discord.Message, bot *gateway.Session) {
+		func() {
 			server, _ := bot.State().Guild(msg.GuildId)
+			if server.Description == "" {
+				server.Description = "no description"
+			} else {
+				server.Description += "\n"
+			}
+			if server.AfkChannelId == "" {
+				server.AfkChannelId = "none"
+			} else {
+				server.AfkChannelId = "<#" + server.AfkChannelId + ">"
+			}
 			puts(fmt.Sprintf(
 				"name: %s\n"+
 					"id: %s\n"+
-					"description: %s\n\n"+
+					"description: %s\n"+
 					"channels: %d\n"+
 					"emojis: %d\n"+
 					"members: %d\n"+
-					"owner: <@%s>",
+					"owner: <@%s>\n"+
+					"afk channel: %s",
 				server.Name,
 				server.Id,
 				server.Description,
@@ -106,17 +121,23 @@ func runCMD(index string) func(func(string), *discord.Message, *gateway.Session)
 				len(server.Emojis),
 				server.MemberCount,
 				server.OwnerId,
+				server.AfkChannelId,
 			),
 			)
 		},
-		func(puts func(s string), msg *discord.Message, bot *gateway.Session) {
+
+		func() {
+			puts(msg.Content)
+		},
+
+		func() {
 			puts(fmt.Sprintf("invalid command, `%shelp` for all commands", pref))
 		},
 	}
 	var i byte
 	for ; indexes[i] != index && i < byte(len(indexes))-1; i++ {
 	}
-	return values[i]
+	(values[i])()
 }
 
 func splitstr(str string, length byte) string {
@@ -158,7 +179,7 @@ func main() {
 	status := discord.StatusType(conf[1])
 	color, _ := strconv.Atoi(conf[2])
 
-	bot := goscord.New(&gateway.Options{
+	bot = goscord.New(&gateway.Options{
 		Token:   token,
 		Intents: gateway.IntentGuildMessages + gateway.IntentGuilds + gateway.IntentGuildMembers,
 	})
@@ -173,17 +194,20 @@ func main() {
 		})
 	})
 
-	bot.On("messageCreate", func(msg *discord.Message) {
+	bot.On("messageCreate", func(event *discord.Message) {
+		msg = event
 		if char_on(msg.Content, 0) == pref && msg.Author.Id != bot.Me().Id {
 			e := embed.NewEmbedBuilder()
 			e.SetColor(color)
 			user := msg.Author
+
 			if len(msg.Mentions) > 0 {
 				user = msg.Mentions[0]
 			}
-			var webhook func(string, string) *embed.Embed = func(s1 string, s2 string) *embed.Embed {
-				e.SetTitle(s1)
-				e.SetDescription(s2)
+
+			var webhook func(string) *embed.Embed = func(s1 string) *embed.Embed {
+				e.SetTitle(getcmd(msg.Content))
+				e.SetDescription(s1)
 
 				switch getcmd(msg.Content) {
 				case "server":
@@ -196,13 +220,10 @@ func main() {
 				}
 				return e.Embed()
 			}
-			(runCMD(msg.Content))(
-				func(txt string) {
-					bot.Channel.ReplyMessage(msg.ChannelId, msg.Id, webhook(getcmd(msg.Content), txt))
-				},
-				msg,
-				bot,
-			)
+			puts = func(txt string) {
+                                bot.Channel.ReplyMessage(msg.ChannelId, msg.Id, webhook(txt))
+                        }
+			runCMD()
 		}
 	})
 
